@@ -1,3 +1,3 @@
-nvcc -c thrust_multi_lib.cu
+nvcc -c thrust_sort.cu
 g++ -c pgdb.c -I/usr/include/postgresql
-nvcc thrust_multi_lib.o pgdb.o -L /usr/lib -lpq
+nvcc thrust_sort.o pgdb.o -L /usr/lib -lpq
