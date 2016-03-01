@@ -1,11 +1,23 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "libpq-fe.h"
 #define TESLA_PG_MAX_CONNINFO_LEN 1024
+#define AGG_SUM 0
+#define AGG_COUNT 1
+#define AGG_MIN 2
+#define AGG_MAX 3
+#define AGG_AVG 4
+
 int sort_data(int *keys, int **values, int n);
 int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
                int *agg_funcs, int agg_funcs_count, int **keys, int ***ptrs,
                int **values, int *num_rows);
+int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[],
+             int agg_funcs_count, int agg_vals[], int agg_cols_count);
+void emit_previous_row(int key, int agg_vals[], int agg_funcs_count);
+void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
+                  int agg_funcs[], int agg_funcs_count);
 PGconn *connect_to_db(char *host, char *port, char *user, char *password, char *database);
 #define MAX 5
 #define TRUE 1
@@ -37,37 +49,39 @@ main()
   printf("Beginning fetching data\n");
   fetch_data(query, &gb_col, 1, agg_cols, agg_funcs, num_agg_cols, &keys,
              &ptrs, &values, &rows);
-/*  for(i=0;i<rows;i++)
-  {
-    printf("mainptrs[%d]=%x\n",i,ptrs[i]);
-  }*/
+  /*  for(i=0;i<rows;i++)
+      {
+      printf("mainptrs[%d]=%x\n",i,ptrs[i]);
+      }*/
   //print keys
   /*for(i=0;i<rows;i++)
-  {
+    {
     printf("Key[%d]=%d\n",i,keys[i]);
-  }
-  printf("printing values");
-  for(i=0;i<rows;i++)
-    for(j=0;j<num_agg_cols;j++)
-    {
-      printf("%d\n",values[i*num_agg_cols+j]);
     }
-  printf("Printing thru ptrs before sorting\n");
-  for(i=0;i<rows;i++)
+    printf("printing values");
+    for(i=0;i<rows;i++)
     for(j=0;j<num_agg_cols;j++)
     {
-      printf("%d\n",ptrs[i][j]);
+    printf("%d\n",values[i*num_agg_cols+j]);
+    }
+    printf("Printing thru ptrs before sorting\n");
+    for(i=0;i<rows;i++)
+    for(j=0;j<num_agg_cols;j++)
+    {
+    printf("%d\n",ptrs[i][j]);
     }*/
   sort_data(keys, ptrs, rows);
+  group_by(keys, ptrs , rows, num_agg_cols, agg_funcs, num_agg_cols, agg_cols,
+           num_agg_cols);
   /*printf("Printing thru ptrs after sorting\n");
-  for(i=0;i<rows;i++)
-  {
+    for(i=0;i<rows;i++)
+    {
     printf("Key=%d\n",keys[i]);
     for(j=0;j<num_agg_cols;j++)
     {
-      printf("%d\n",ptrs[i][j]);
+    printf("%d\n",ptrs[i][j]);
     }
-  }*/
+    }*/
 
 }
 
@@ -179,3 +193,69 @@ PGconn *connect_to_db(char *host, char *port, char *user, char *password, char *
   }
   return conn;
 }
+int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[], 
+             int agg_funcs_count, int agg_cols[], int agg_cols_count)
+{
+  int i, j; //For iteration
+  int key, prev_key=-1;
+  int agg_vals[agg_funcs_count];
+  printf("Entered group by with rows=%d cols=%d func_count=%d cols_count=%d\n",
+         rows, cols, agg_funcs_count, agg_cols_count);
+  memset(agg_vals, 0, agg_cols_count*sizeof(int));
+  prev_key=keys[0];
+  for(i=0;i<rows;i++)
+  {
+    key=keys[i];
+    if(key != prev_key)
+    {
+      emit_previous_row(prev_key, agg_vals, agg_funcs_count);
+      //initialise a set of counters
+      memset(agg_vals, 0, agg_cols_count*sizeof(int));
+    }
+    update_group(key, data[i], agg_cols, agg_vals, agg_funcs, agg_funcs_count);
+    prev_key=key;
+  }
+  emit_previous_row(prev_key, agg_vals, agg_funcs_count);
+}
+void emit_previous_row(int key, int agg_vals[], int agg_funcs_count)
+{
+  int i;
+  printf("Emiting group\n");
+  printf("Key=%d\n", key);
+  for(i=0;i<agg_funcs_count;i++)
+  {
+    printf("Agg[%d]=%d\t",i,agg_vals[i]);
+  }
+  printf("\n");
+}
+void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
+                  int agg_funcs[], int agg_funcs_count)
+{
+  int i;
+  /* printf("Entered update_group with key=%d\n", key);*/
+  /* printf("CUrrent row values::\n");*/                                         
+  for(i=0;i<agg_funcs_count;i++)
+  {
+    switch(agg_funcs[i])
+    {
+      case AGG_AVG:
+      case AGG_SUM:agg_vals[i]+=row_data[agg_cols[i]];
+                   break;
+      case AGG_MAX:if(row_data[agg_cols[i]] > agg_vals[i])
+                   {
+                     agg_vals[i]=row_data[agg_cols[i]];
+                   }
+                   break;
+      case AGG_MIN:if(row_data[agg_cols[i]] < agg_vals[i])
+                   {
+                     agg_vals[i]=row_data[agg_cols[i]];
+                   }
+                   break;
+      case AGG_COUNT:
+                   agg_vals[i]++;
+                   break;
+
+    }
+  }
+}
+

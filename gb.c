@@ -21,7 +21,7 @@ int main()
   int agg_cols[]={1,1};//aggregating sum(j), max(j)
   x=malloc(sizeof(int *)*10);
   for(i=0;i<10;i++)
-    x[i]=malloc(sizeof(int)*20);
+    x[i]=malloc(sizeof(int)*2);
 
   x[0][0]=1;
   x[0][1]=10;
@@ -85,6 +85,7 @@ void group_by(int *data[], int rows, int cols, int gb_col, int agg_funcs[],
     update_group(key, data[i], agg_cols, agg_vals, agg_funcs, agg_funcs_count);
     prev_key=key;
   }
+  emit_previous_row(prev_key, agg_vals, agg_funcs_count);
 }
 
 void emit_previous_row(int key, int agg_vals[], int agg_funcs_count)
@@ -103,8 +104,8 @@ void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
                   int agg_funcs[], int agg_funcs_count)
 {
   int i;
-  //printf("Entered update_group with key=%d\n", key);
-  ///printf("CUrrent row values::\n");
+  /*printf("Entered update_group with key=%d\n", key);*/
+  /*printf("CUrrent row values::\n");*/
   for(i=0;i<agg_funcs_count;i++)
   {
     switch(agg_funcs[i])
