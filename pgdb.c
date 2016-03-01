@@ -33,7 +33,7 @@ main()
   char *database=(char *)"postgres";
   int gb_col=0;
   int agg_cols[]={1,2};
-  int agg_funcs[]={1,2};
+  int agg_funcs[]={0,3};//sum,max
   int num_agg_cols=2;
   int rows=-1, i,j;
   int *keys=NULL, *values=NULL, **ptrs=NULL;
@@ -63,13 +63,13 @@ main()
     for(j=0;j<num_agg_cols;j++)
     {
     printf("%d\n",values[i*num_agg_cols+j]);
-    }
+    }*/
     printf("Printing thru ptrs before sorting\n");
     for(i=0;i<rows;i++)
     for(j=0;j<num_agg_cols;j++)
     {
     printf("%d\n",ptrs[i][j]);
-    }*/
+    }
   sort_data(keys, ptrs, rows);
   group_by(keys, ptrs , rows, num_agg_cols, agg_funcs, num_agg_cols, agg_cols,
            num_agg_cols);
@@ -162,7 +162,7 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
     {
       values[i*agg_funcs_count+j]=atoi(PQgetvalue(res, i, agg_cols[j]));
       //printf("Value [%d]=%d\n",i*agg_funcs_count+j,values[i*agg_funcs_count+j]);
-      //printf("Value by ptr [%d]=%d\n",j,ptrs[i][j]);
+      printf("Value by ptr [%d]=%d\n",j,ptrs[i][j]);
     }
     //printf("\n");
   }
@@ -232,10 +232,21 @@ void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
                   int agg_funcs[], int agg_funcs_count)
 {
   int i;
-  /* printf("Entered update_group with key=%d\n", key);*/
-  /* printf("CUrrent row values::\n");*/                                         
+printf("Entered update_group with key=%d\n", key);
+  printf("Current row values::\n");
   for(i=0;i<agg_funcs_count;i++)
   {
+    printf("col[%d]=%d", i, row_data[i]);
+  }
+  printf("Current aggs before update are\n");
+  for(i=0;i<agg_funcs_count;i++)
+  {
+    printf("agg_vals[%d]=%d\n",i,agg_vals[i]);
+  }
+  printf("\n");
+  for(i=0;i<agg_funcs_count;i++)
+  {
+    printf("Agg_func[%d]=%d\n",i,agg_funcs[i]);
     switch(agg_funcs[i])
     {
       case AGG_AVG:
@@ -257,5 +268,11 @@ void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
 
     }
   }
+  printf("Current aggs after update are\n");
+  for(i=0;i<agg_funcs_count;i++)
+  {
+    printf("agg_vals[%d]=%d\n",i,agg_vals[i]);
+  }
+  printf("\n");
 }
 
