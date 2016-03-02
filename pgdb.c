@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "libpq-fe.h"
 #define TESLA_PG_MAX_CONNINFO_LEN 1024
 #define AGG_SUM 0
@@ -18,6 +19,7 @@ int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[],
 void emit_previous_row(int key, int agg_vals[], int agg_funcs_count);
 void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
                   int agg_funcs[], int agg_funcs_count);
+void reset_group_indexes(int agg_cols[], int num_agg_cols);
 PGconn *connect_to_db(char *host, char *port, char *user, char *password, char *database);
 #define MAX 5
 #define TRUE 1
@@ -32,12 +34,14 @@ main()
   char *password=(char *)"";
   char *database=(char *)"postgres";
   int gb_col=0;
-  int agg_cols[]={1,2};
-  int agg_funcs[]={0,3};//sum,max
-  int num_agg_cols=2;
+  int agg_cols[]={1,2, 3};
+  int agg_funcs[]={0,0,3};//sum,max
+  int num_agg_cols=sizeof(agg_cols)/sizeof(agg_cols[0]);
   int rows=-1, i,j;
   int *keys=NULL, *values=NULL, **ptrs=NULL;
-  char *query=(char *)"select i, j, k from t1 order by 1 desc";
+  char *query=(char *)"select i, i, j, k from t3";
+  time_t start,end;
+  double timediff;
   conn = connect_to_db(host, port, user, password, database);
   if(!conn)
   {
@@ -47,41 +51,58 @@ main()
   printf("Connection to db succeeded\n");
   //Fetch the data in the query and sort
   printf("Beginning fetching data\n");
+  time(&start);
   fetch_data(query, &gb_col, 1, agg_cols, agg_funcs, num_agg_cols, &keys,
              &ptrs, &values, &rows);
-  /*  for(i=0;i<rows;i++)
-      {
-      printf("mainptrs[%d]=%x\n",i,ptrs[i]);
-      }*/
+  time(&end);
+  timediff = difftime(end, start);
+  printf("Time taken for fetch=%f\n",timediff);
+#ifdef DEBUG
+  for(i=0;i<rows;i++)
+  {
+    printf("mainptrs[%d]=%x\n",i,ptrs[i]);
+  }
   //print keys
-  /*for(i=0;i<rows;i++)
-    {
+  for(i=0;i<rows;i++)
+  {
     printf("Key[%d]=%d\n",i,keys[i]);
-    }
-    printf("printing values");
-    for(i=0;i<rows;i++)
+  }
+  printf("printing values");
+  for(i=0;i<rows;i++)
     for(j=0;j<num_agg_cols;j++)
     {
-    printf("%d\n",values[i*num_agg_cols+j]);
-    }*/
-    printf("Printing thru ptrs before sorting\n");
-    for(i=0;i<rows;i++)
+      printf("%d\n",values[i*num_agg_cols+j]);
+    }
+  printf("Printing thru ptrs before sorting\n");
+  for(i=0;i<rows;i++)
     for(j=0;j<num_agg_cols;j++)
     {
-    printf("%d\n",ptrs[i][j]);
+      printf("%d\n",ptrs[i][j]);
     }
+#endif
+  time(&start);
   sort_data(keys, ptrs, rows);
+  time(&end);
+  timediff = difftime(end, start);
+  printf("Time taken for sort=%lf\n",timediff);
+  reset_group_indexes(agg_cols, num_agg_cols);
+  time(&start);
   group_by(keys, ptrs , rows, num_agg_cols, agg_funcs, num_agg_cols, agg_cols,
            num_agg_cols);
-  /*printf("Printing thru ptrs after sorting\n");
-    for(i=0;i<rows;i++)
-    {
+  time(&end);
+  timediff = difftime(end, start);
+  printf("Time taken for aggregation=%f\n",timediff);
+#ifdef DEBUG
+  printf("Printing thru ptrs after sorting\n");
+  for(i=0;i<rows;i++)
+  {
     printf("Key=%d\n",keys[i]);
     for(j=0;j<num_agg_cols;j++)
     {
-    printf("%d\n",ptrs[i][j]);
+      printf("%d\n",ptrs[i][j]);
     }
-    }*/
+  }
+#endif
 
 }
 
@@ -162,7 +183,9 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
     {
       values[i*agg_funcs_count+j]=atoi(PQgetvalue(res, i, agg_cols[j]));
       //printf("Value [%d]=%d\n",i*agg_funcs_count+j,values[i*agg_funcs_count+j]);
+#ifdef DEBUG
       printf("Value by ptr [%d]=%d\n",j,ptrs[i][j]);
+#endif
     }
     //printf("\n");
   }
@@ -220,6 +243,7 @@ int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[],
 void emit_previous_row(int key, int agg_vals[], int agg_funcs_count)
 {
   int i;
+  return;
   printf("Emiting group\n");
   printf("Key=%d\n", key);
   for(i=0;i<agg_funcs_count;i++)
@@ -232,7 +256,8 @@ void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
                   int agg_funcs[], int agg_funcs_count)
 {
   int i;
-printf("Entered update_group with key=%d\n", key);
+#ifdef DEBUG
+  printf("Entered update_group with key=%d\n", key);
   printf("Current row values::\n");
   for(i=0;i<agg_funcs_count;i++)
   {
@@ -244,9 +269,12 @@ printf("Entered update_group with key=%d\n", key);
     printf("agg_vals[%d]=%d\n",i,agg_vals[i]);
   }
   printf("\n");
+#endif
   for(i=0;i<agg_funcs_count;i++)
   {
+#ifdef DEBUG
     printf("Agg_func[%d]=%d\n",i,agg_funcs[i]);
+#endif
     switch(agg_funcs[i])
     {
       case AGG_AVG:
@@ -268,11 +296,23 @@ printf("Entered update_group with key=%d\n", key);
 
     }
   }
+#ifdef DEBUG
   printf("Current aggs after update are\n");
   for(i=0;i<agg_funcs_count;i++)
   {
     printf("agg_vals[%d]=%d\n",i,agg_vals[i]);
   }
   printf("\n");
+#endif
 }
-
+/* The group index columns have to be reduced by 1 because
+ * the first index is the group by column which has to be selected in the 
+ * query but when we aggregate, we should not aggregate the 0th column*/
+void reset_group_indexes(int agg_cols[], int num_agg_cols)
+{
+  int i;
+  for(i=0;i<num_agg_cols;i++)
+  {
+    agg_cols[i]--;
+  }
+}
