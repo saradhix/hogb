@@ -125,7 +125,7 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
 
   snprintf(buf,sizeof(buf),"DECLARE myportal CURSOR FOR  %s",query);
 
-  res=PQexec(conn,buf);
+  res=PQexecParams(conn,buf, 0, NULL, NULL, NULL, NULL, 1);
   PQsetSingleRowMode(conn);
   if(PQresultStatus(res) != PGRES_COMMAND_OK)
   {
@@ -178,6 +178,7 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
   for(i=0;i<*num_rows;i++)
   {
     keys[i]=atoi(PQgetvalue(res, i, gb_keys[0]));
+    keys[i]=*((int *)PQgetvalue(res, i, gb_keys[0]));
     ///printf("key=%d\n",keys[i]);
     ptrs[i]=values+i*agg_funcs_count;
     for(j=0;j<agg_funcs_count;j++)
