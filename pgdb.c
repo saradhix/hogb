@@ -39,7 +39,7 @@ main()
   int num_agg_cols=sizeof(agg_cols)/sizeof(agg_cols[0]);
   int rows=-1, i,j;
   int *keys=NULL, *values=NULL, **ptrs=NULL;
-  char *query=(char *)"select i, i, j, k from t3";
+  char *query=(char *)"select i, i, j, k from t2";
   time_t start,end;
   double timediff;
   conn = connect_to_db(host, port, user, password, database);
@@ -126,6 +126,7 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
   snprintf(buf,sizeof(buf),"DECLARE myportal CURSOR FOR  %s",query);
 
   res=PQexec(conn,buf);
+  PQsetSingleRowMode(conn);
   if(PQresultStatus(res) != PGRES_COMMAND_OK)
   {
     printf("DECLARE cursor failed %s\n",PQerrorMessage(conn));
@@ -243,7 +244,9 @@ int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[],
 void emit_previous_row(int key, int agg_vals[], int agg_funcs_count)
 {
   int i;
+#ifndef PRINT_GROUP
   return;
+#endif
   printf("Emiting group\n");
   printf("Key=%d\n", key);
   for(i=0;i<agg_funcs_count;i++)
