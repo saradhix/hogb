@@ -177,7 +177,7 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
   //Now populate the values
   for(i=0;i<*num_rows;i++)
   {
-    keys[i]=atoi(PQgetvalue(res, i, gb_keys[0]));
+    //keys[i]=atoi(PQgetvalue(res, i, gb_keys[0]));
     keys[i]=*((int *)PQgetvalue(res, i, gb_keys[0]));
     ///printf("key=%d\n",keys[i]);
     ptrs[i]=values+i*agg_funcs_count;
