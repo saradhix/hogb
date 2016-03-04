@@ -44,3 +44,6 @@ insert into t3 select * from t3;
 insert into t3 select * from t3;
 insert into t3 select * from t3;
 select count(*) from t3;
+create table t4 as select * from t3;
+insert into t4 select * from t4;
+select count(*) from t4;

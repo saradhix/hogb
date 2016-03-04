@@ -40,7 +40,7 @@ main()
   int num_agg_cols=sizeof(agg_cols)/sizeof(agg_cols[0]);
   int rows=-1, i,j;
   int *keys=NULL, *values=NULL, **ptrs=NULL;
-  char *query=(char *)"select i, i, j, k from t2";
+  char *query=(char *)"select i, i, j, k from t4";
   time_t start,end;
   double timediff;
   conn = connect_to_db(host, port, user, password, database);
