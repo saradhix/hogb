@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -114,31 +115,12 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
   char buf[1024]={0};
   int num_fields=0;
   int *keys, *values, **ptrs;
-  /* Start a transaction block. This is mandatory to create for any cursor*/
-  res = PQexec(conn,"BEGIN");
-  if (PQresultStatus(res) != PGRES_COMMAND_OK)
-  {
-    printf("BEGIN command failed %s\n",PQerrorMessage(conn));
-    PQclear(res);
-    exit(1);
-  }
-
-  snprintf(buf,sizeof(buf),"DECLARE myportal CURSOR FOR  %s",query);
-
-  res=PQexecParams(conn,buf, 0, NULL, NULL, NULL, NULL, 1);
+  int ival;
   PQsetSingleRowMode(conn);
-  if(PQresultStatus(res) != PGRES_COMMAND_OK)
+  res=PQexecParams(conn, query, 0, NULL, NULL, NULL, NULL, 1);
+  if(PQresultStatus(res) != PGRES_TUPLES_OK)
   {
-    printf("DECLARE cursor failed %s\n",PQerrorMessage(conn));
-    PQclear(res);
-    exit(1);
-  }
-  PQclear(res);
-
-  res = PQexec(conn,"FETCH ALL in myportal");
-  if (PQresultStatus(res) != PGRES_TUPLES_OK)
-  {
-    printf("FETCH ALL failed %s\n",PQerrorMessage(conn));
+    printf("Query failed %s\n",PQerrorMessage(conn));
     PQclear(res);
     exit(1);
   }
@@ -178,12 +160,12 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
   for(i=0;i<*num_rows;i++)
   {
     //keys[i]=atoi(PQgetvalue(res, i, gb_keys[0]));
-    keys[i]=*((int *)PQgetvalue(res, i, gb_keys[0]));
-    ///printf("key=%d\n",keys[i]);
+    keys[i]=ntohl(*((int *)PQgetvalue(res, i, gb_keys[0])));
+    //printf("key=%d\n",keys[i]);
     ptrs[i]=values+i*agg_funcs_count;
     for(j=0;j<agg_funcs_count;j++)
     {
-      values[i*agg_funcs_count+j]=atoi(PQgetvalue(res, i, agg_cols[j]));
+      values[i*agg_funcs_count+j]=ntohl(*((int *)PQgetvalue(res, i, agg_cols[j])));
       //printf("Value [%d]=%d\n",i*agg_funcs_count+j,values[i*agg_funcs_count+j]);
 #ifdef DEBUG
       printf("Value by ptr [%d]=%d\n",j,ptrs[i][j]);
