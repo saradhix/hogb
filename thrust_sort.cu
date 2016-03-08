@@ -27,6 +27,7 @@ void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
                   int agg_funcs[], int agg_funcs_count);
 void reset_group_indexes(int agg_cols[], int num_agg_cols);
 PGconn *connect_to_db(char *host, char *port, char *user, char *password, char *database);
+int group_count=0;
 #define MAX 5
 #define TRUE 1
 #define FALSE 0
@@ -48,7 +49,7 @@ main()
   thrust::host_vector<int> keys;
   thrust::host_vector<int *> ptrs;
   int *values = NULL;
-  char *query=(char *)"select i, i, j, k from t1";
+  char *query=(char *)"select i, i, j, k from t4";
   time_t start,end;
   double timediff;
   conn = connect_to_db(host, port, user, password, database);
@@ -111,6 +112,10 @@ main()
       printf("%d\n",ptrs[i][j]);
     }
   }
+#endif
+#ifndef PRINT_GROUP
+  printf("Number of groups=%d\n",group_count);
+  return 0;
 #endif
 
 }
@@ -237,10 +242,8 @@ int group_by(thrust::host_vector<int> keys, thrust::host_vector<int *> data, int
 }
 void emit_previous_row(int key, int agg_vals[], int agg_funcs_count)
 {
+#ifdef PRINT_GROUP
   int i;
-#ifndef PRINT_GROUP
-  return;
-#endif
   printf("Emiting group\n");
   printf("Key=%d\n", key);
   for(i=0;i<agg_funcs_count;i++)
@@ -248,6 +251,9 @@ void emit_previous_row(int key, int agg_vals[], int agg_funcs_count)
     printf("Agg[%d]=%d\t",i,agg_vals[i]);
   }
   printf("\n");
+#else
+  group_count++;
+#endif
 }
 void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
                   int agg_funcs[], int agg_funcs_count)
