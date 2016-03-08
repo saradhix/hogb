@@ -16,11 +16,11 @@
 #define AGG_AVG 4
 
 //int sort_data(int *keys, int **values, int n);
-int sort_data(thrust::host_vector<int> &h_keys, thrust::host_vector<int *> &h_vals, int N)
+int sort_data(thrust::host_vector<int> &h_keys, thrust::host_vector<int *> &h_vals, int N);
 int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
-               int *agg_funcs, int agg_funcs_count, int **keys, int ***ptrs,
-               int **values, int *num_rows);
-int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[],
+               int *agg_funcs, int agg_funcs_count, thrust::host_vector<int> &keys,
+               thrust::host_vector<int *> &ptrs, int **pvalues, int *num_rows);
+int group_by(thrust::host_vector<int> keys, thrust::host_vector<int *> data, int rows, int cols, int agg_funcs[],
              int agg_funcs_count, int agg_vals[], int agg_cols_count);
 void emit_previous_row(int key, int agg_vals[], int agg_funcs_count);
 void update_group(int key, int *row_data, int agg_cols[], int agg_vals[],
@@ -43,12 +43,12 @@ main()
   int agg_cols[]={1,2, 3};
   int agg_funcs[]={0,0,3};//sum,max
   int num_agg_cols=sizeof(agg_cols)/sizeof(agg_cols[0]);
-  int rows=-1, i,j;
+  int rows=-1;
   //int *keys=NULL, *values=NULL, **ptrs=NULL;
-  int **ptrs=NULL;
   thrust::host_vector<int> keys;
-  thrust::host_vector<int *> values;
-  char *query=(char *)"select i, i, j, k from t4";
+  thrust::host_vector<int *> ptrs;
+  int *values = NULL;
+  char *query=(char *)"select i, i, j, k from t1";
   time_t start,end;
   double timediff;
   conn = connect_to_db(host, port, user, password, database);
@@ -62,7 +62,7 @@ main()
   printf("Beginning fetching data\n");
   time(&start);
   fetch_data(query, &gb_col, 1, agg_cols, agg_funcs, num_agg_cols, keys,
-             &ptrs, values, &rows);
+             ptrs, &values, &rows);
   time(&end);
   timediff = difftime(end, start);
   printf("Time taken for fetch=%f\n",timediff);
@@ -117,12 +117,12 @@ main()
 
 int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
                int *agg_funcs, int agg_funcs_count, thrust::host_vector<int> &keys,
-               int ***pptrs, thrust::host_vector<int *> &values, int *num_rows)
+               thrust::host_vector<int *> &ptrs, int **pvalues, int *num_rows)
 {
   int i, j;
-  char buf[1024]={0};
+  //char buf[1024]={0};
   int num_fields=0;
-  int *keys, *values, **ptrs;
+  int  *values;
   PQsetSingleRowMode(conn);
   res=PQexecParams(conn, query, 0, NULL, NULL, NULL, NULL, 1);
   if(PQresultStatus(res) != PGRES_TUPLES_OK)
@@ -133,6 +133,8 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
   }
   num_fields = PQnfields(res);
   *num_rows = PQntuples(res);
+  keys.resize(*num_rows);
+  ptrs.resize(*num_rows);
   printf("Entered fetch_data with query=%s\n", query);
   printf("Num fields=%d, num_rows=%d\n", num_fields, *num_rows);
 
@@ -149,19 +151,20 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
     printf("Could not allocate memory for keys");
     return -1;
   }*/
+  /*
   ptrs = (int **)malloc(*num_rows*sizeof(int *));
   if(!ptrs)
   {
     printf("Could not allocate memory for ptrs");
     return -1;
-  }
-  /*values = (int *)malloc(*num_rows*agg_funcs_count*sizeof(int));
+  }*/
+  values = (int *)malloc(*num_rows*agg_funcs_count*sizeof(int));
   //Note that agg_funcs_count is equal to the number of aggregated columns
   if(!values)
   {
     printf("Could not allocate memory for values");
     return -1;
-  };*/
+  };
 
   //Now populate the values
   for(i=0;i<*num_rows;i++)
@@ -181,9 +184,8 @@ int fetch_data(char *query, int *gb_keys, int gb_keys_count, int *agg_cols,
     //printf("\n");
   }
 
-  *pptrs=ptrs;
-  *pkeys=keys;
   *pvalues=values;
+  return 0;
 
 
 }
@@ -207,10 +209,11 @@ PGconn *connect_to_db(char *host, char *port, char *user, char *password, char *
   }
   return conn;
 }
-int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[], 
-             int agg_funcs_count, int agg_cols[], int agg_cols_count)
+int group_by(thrust::host_vector<int> keys, thrust::host_vector<int *> data, int rows, int cols,
+             int agg_funcs[], int agg_funcs_count, int agg_cols[],
+             int agg_cols_count)
 {
-  int i, j; //For iteration
+  int i; //For iteration
   int key, prev_key=-1;
   int agg_vals[agg_funcs_count];
   printf("Entered group by with rows=%d cols=%d func_count=%d cols_count=%d\n",
@@ -230,6 +233,7 @@ int group_by(int *keys, int *data[], int rows, int cols, int agg_funcs[],
     prev_key=key;
   }
   emit_previous_row(prev_key, agg_vals, agg_funcs_count);
+  return 0;
 }
 void emit_previous_row(int key, int agg_vals[], int agg_funcs_count)
 {
@@ -311,23 +315,7 @@ void reset_group_indexes(int agg_cols[], int num_agg_cols)
 }
 int sort_data(thrust::host_vector<int> &h_keys, thrust::host_vector<int *> &h_vals, int N)
 {
-//  int i;
-/*  for(i=0;i<N;i++)
-  {
-    printf("Before sort Key=%d addr=%x\n",keys[i],values[i]);
-  }*/
-  time_t start, end;
-/*  thrust::host_vector<int> h_keys(N);
-  thrust::host_vector<int *> h_vals(N);
-  time(&start);
-  for(int i=0;i<N;i++)
-  {
-    h_keys[i]=keys[i];
-    h_vals[i]=values[i];
-  }
-  time(&end);
-  printf("Time taken for h->d is %f\n",difftime(end, start));*/
-  //Create the device vector for keys and values
+#ifndef NOCUDA
   thrust::device_vector<int> d_keys = h_keys;
   thrust::device_vector<int *> d_vals = h_vals;
   //sort the data on the GPU
@@ -335,18 +323,8 @@ int sort_data(thrust::host_vector<int> &h_keys, thrust::host_vector<int *> &h_va
   //copy the data back to the CPU
   thrust::copy(d_keys.begin(), d_keys.end(), h_keys.begin());
   thrust::copy(d_vals.begin(), d_vals.end(), h_vals.begin());
- /*  time(&start);
-  for(int i=0;i<N;i++)
-  {
-    keys[i]=h_keys[i];
-    values[i]=h_vals[i];
-  }
-  time(&end);
-  printf("Time taken for d->h is %f\n",difftime(end, start));
-   for(i=0;i<N;i++)
-      {
-      printf("After sort Key=%d addr=%x\n",keys[i],values[i]);
-      }
-   */
+#else
+  thrust::sort_by_key(h_keys.begin(), h_keys.end(), h_vals.begin() );
+#endif
   return 0;
 }
