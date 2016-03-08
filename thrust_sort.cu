@@ -49,7 +49,7 @@ main()
   thrust::host_vector<int> keys;
   thrust::host_vector<int *> ptrs;
   int *values = NULL;
-  char *query=(char *)"select i, i, j, k from t4";
+  char *query=(char *)"select i, i, j, k from t5";
   time_t start,end;
   double timediff;
   conn = connect_to_db(host, port, user, password, database);

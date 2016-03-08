@@ -47,3 +47,13 @@ select count(*) from t3;
 create table t4 as select * from t3;
 insert into t4 select * from t4;
 select count(*) from t4;
+drop table if exists t5;
+create table t5(i int, j int, k int);
+insert into t5(i) select generate_series(1,250000);--50000 groups
+update t5 set j=100, k=1000;
+insert into t5 select * from t5;
+insert into t5 select * from t5;
+insert into t5 select * from t5;
+insert into t5 select * from t5;
+insert into t5 select * from t5;
+insert into t5 select * from t5;
